@@ -1,9 +1,6 @@
 #!/usr/bin/python
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from distutils.core import setup
 
 setup(name = "python-networkmanager",
       version = "2.0.1",
