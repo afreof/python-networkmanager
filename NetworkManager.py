@@ -51,32 +51,35 @@ class SignalDispatcher(object):
         self.handlers[key].append((obj, func, args, kwargs))
 
     def handle_signal(self, *args, **kwargs):
-        key = (kwargs['interface'], kwargs['signal'])
-        skwargs = {}
-        sargs = []
-        if key not in self.handlers:
-            return
-        sender = fixups.base_to_python(kwargs['path'])
-        for arg, (name, signature) in zip(args, self.args[key]):
-            if name:
-                skwargs[name] = fixups.to_python(type(sender).__name__, kwargs['signal'], name, arg, signature)
-            else:
-                # Older NetworkManager versions don't supply attribute names. Hope for the best.
-                sargs.append(fixups.to_python(type(sender).__name__, kwargs['signal'], None, arg, signature))
-        to_delete = []
-        for pos, (match, receiver, rargs, rkwargs) in enumerate(self.handlers[key]):
-            try:
-                match == sender
-            except ObjectVanished:
-                to_delete.append(pos)
-                continue
-            if match == sender:
-                rkwargs['interface'] = kwargs['interface']
-                rkwargs['signal'] = kwargs['signal']
-                rkwargs.update(skwargs)
-                receiver(sender, *(sargs + rargs), **rkwargs)
-        for pos in reversed(to_delete):
-            self.handlers[key].pop(pos)
+        try:
+            key = (kwargs['interface'], kwargs['signal'])
+            skwargs = {}
+            sargs = []
+            if key not in self.handlers:
+                return
+            sender = fixups.base_to_python(kwargs['path'])
+            for arg, (name, signature) in zip(args, self.args[key]):
+                if name:
+                    skwargs[name] = fixups.to_python(type(sender).__name__, kwargs['signal'], name, arg, signature)
+                else:
+                    # Older NetworkManager versions don't supply attribute names. Hope for the best.
+                    sargs.append(fixups.to_python(type(sender).__name__, kwargs['signal'], None, arg, signature))
+            to_delete = []
+            for pos, (match, receiver, rargs, rkwargs) in enumerate(self.handlers[key]):
+                try:
+                    match == sender
+                except ObjectVanished:
+                    to_delete.append(pos)
+                    continue
+                if match == sender:
+                    rkwargs['interface'] = kwargs['interface']
+                    rkwargs['signal'] = kwargs['signal']
+                    rkwargs.update(skwargs)
+                    receiver(sender, *(sargs + rargs), **rkwargs)
+            for pos in reversed(to_delete):
+                self.handlers[key].pop(pos)
+        except dbus.exceptions.DBusException:  # E.g. if an interface disappeared immediately after sending a singal
+            pass
 
     def handle_restart(self, name, old, new):
         if str(new) == "" or str(name) != 'org.freedesktop.NetworkManager':
